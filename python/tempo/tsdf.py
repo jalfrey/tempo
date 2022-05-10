@@ -4,8 +4,10 @@ from typing import List
 
 import numpy as np
 import pyspark.sql.functions as f
+import pyspark.sql.types as t
 from IPython.core.display import HTML
 from IPython.display import display as ipydisplay
+from pyspark.shell import spark
 from pyspark.sql import SparkSession
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.window import Window
@@ -684,6 +686,153 @@ class TSDF:
     rs.validateFuncExists(func)
     enriched_df:DataFrame = rs.aggregate(self, freq, func, metricCols, prefix, fill)
     return (_ResampledTSDF(enriched_df, ts_col = self.ts_col, partition_cols = self.partitionCols, freq = freq, func = func))
+
+  def autocorr(self, col: str, lag: int) -> DataFrame:
+    """
+    Get autocorrelation series of the function based on the lag value provided
+
+    :param col: the column name of the column which has the time series values.
+    :param lag: the lag value till which autocorrelation is going to be calculated.
+    :return: Dataframe of the autocorrelation values
+    """
+    if self.partitionCols:
+        df = self.df.select(self.ts_col, *self.partitionCols, col)
+        mean_count_per_ts = df.groupBy(*self.partitionCols).agg(
+            f.mean(col).alias('mean'),
+            f.count(col).alias('count')
+        )
+        mean_count_added = df.alias('df').join(
+            mean_count_per_ts,
+            self.partitionCols,
+            'left'
+        ).select('df.*', 'mean', 'count')
+        mean_substraction = mean_count_added.withColumn(
+            'substract', f.col(col) - f.col('mean')
+        ).withColumn('sq', f.pow('substract', 2))
+
+        denominator_per_ts = mean_substraction.groupBy(*self.partitionCols).agg(
+            f.sum('sq').alias('denominator')
+        )
+
+        w = Window.partitionBy(self.partitionCols).orderBy(self.ts_col)
+        row_numbered_data = mean_substraction.withColumn(
+            'row',
+            f.row_number().over(w)
+        )
+
+        empty_acf_rdd = spark.sparkContext.emptyRDD()
+        acf_schema = (self.df.select(*self.partitionCols)
+                      .withColumn("lag", f.lit(0)
+                      .withColumn("autocorr_value",f.lit(0.0))
+                      ).schema)
+        acf_df_total = spark.createDataFrame(empty_acf_rdd,acf_schema)
+
+        for lag_value in range(0,lag+1):
+            lag_wise_split_marked_data = row_numbered_data.withColumn(
+                'grouping_col1', f.when(f.col('row') <= (f.col('count') - f.lit(lag_value)), 1).otherwise(f.lit(None))
+            ).withColumn('grouping_col2', f.when(f.col('row') > lag_value, 1).otherwise(f.lit(None)))
+
+            split_marked_join_prep = lag_wise_split_marked_data.withColumn(
+                'df_identity_row1',
+                f.col('row') * f.col('grouping_col1')
+            ).withColumn(
+                'df_identity_row2',
+                f.col('row') * f.col('grouping_col2')
+            )
+            split_marked_join_prep = split_marked_join_prep.withColumn('df_identity_row2',
+                                                                       f.col('df_identity_row2') - f.lit(lag_value))
+
+            numerator_p1 = split_marked_join_prep.filter(f.col('df_identity_row2').isNotNull()).selectExpr(
+                'row as row_p1', 'substract as v_p1', 'df_identity_row2 as joincol', *self.partitionCols
+            )
+            numerator_p2 = split_marked_join_prep.filter(f.col('df_identity_row1').isNotNull()).selectExpr(
+                'row as row_p2', 'substract as v_p2', 'df_identity_row1 as joincol', *self.partitionCols
+            )
+            numerators_collated = numerator_p1.alias('n1').join(numerator_p2.alias('n2'),
+                                                                ['joincol', *self.partitionCols],
+                                                                'inner')
+            numerator_product = numerators_collated.withColumn('mul', f.col('v_p1') * f.col('v_p2'))
+            numerator_per_ts = numerator_product.groupBy(*self.partitionCols).agg(f.sum('mul').alias('numerator'))
+            acf_df = numerator_per_ts.join(denominator_per_ts, [*self.partitionCols], 'inner')
+            acf_df = acf_df.withColumn(
+                "autocorr_value",
+                f.col('numerator') / f.col('denominator')
+            ).withColumn("lag",f.lit(lag_value)).select(*self.partitionCols, "lag", "autocorr_value")
+
+            acf_df_total = acf_df_total.unionByName(acf_df)
+
+        acf_df_total = acf_df_total.orderBy(*self.partitionCols, "lag")
+        return acf_df_total
+
+
+    else:
+        df = self.df.selectExpr(self.ts_col, '"dummy" as _dummy_group_col', col)
+        mean_count_per_ts = df.groupBy('_dummy_group_col').agg(
+            f.mean(col).alias('mean'),
+            f.count(col).alias('count')
+        )
+        mean_count_added = df.alias('df').join(
+            mean_count_per_ts,
+            '_dummy_group_col',
+            'left'
+        ).select('df.*', 'mean', 'count')
+        mean_substraction = mean_count_added.withColumn(
+            'substract', f.col(col) - f.col('mean')
+        ).withColumn('sq', f.pow('substract', 2))
+
+        denominator_per_ts = mean_substraction.groupBy('_dummy_group_col').agg(
+            f.sum('sq').alias('denominator')
+        )
+
+        w = Window.partitionBy('_dummy_group_col').orderBy(self.ts_col)
+        row_numbered_data = mean_substraction.withColumn(
+            'row',
+            f.row_number().over(w)
+        )
+
+        empty_acf_rdd = spark.sparkContext.emptyRDD()
+        acf_schema = t.StructType([
+            t.StructField("lag",t.IntegerType()),
+            t.StructField("autocorr_value",t.DoubleType())
+        ])
+        acf_df_total = spark.createDataFrame(empty_acf_rdd, acf_schema)
+
+        for lag_value in range(0, lag + 1):
+            lag_wise_split_marked_data = row_numbered_data.withColumn(
+                'grouping_col1', f.when(f.col('row') <= (f.col('count') - f.lit(lag_value)), 1).otherwise(f.lit(None))
+            ).withColumn('grouping_col2', f.when(f.col('row') > lag_value, 1).otherwise(f.lit(None)))
+
+            split_marked_join_prep = lag_wise_split_marked_data.withColumn(
+                'df_identity_row1',
+                f.col('row') * f.col('grouping_col1')
+            ).withColumn(
+                'df_identity_row2',
+                f.col('row') * f.col('grouping_col2')
+            )
+            split_marked_join_prep = split_marked_join_prep.withColumn('df_identity_row2',
+                                                                       f.col('df_identity_row2') - f.lit(lag_value))
+
+            numerator_p1 = split_marked_join_prep.filter(f.col('df_identity_row2').isNotNull()).selectExpr(
+                'row as row_p1', 'substract as v_p1', 'df_identity_row2 as joincol', '_dummy_group_col'
+            )
+            numerator_p2 = split_marked_join_prep.filter(f.col('df_identity_row1').isNotNull()).selectExpr(
+                'row as row_p2', 'substract as v_p2', 'df_identity_row1 as joincol', '_dummy_group_col'
+            )
+            numerators_collated = numerator_p1.alias('n1').join(numerator_p2.alias('n2'),
+                                                                ['joincol', '_dummy_group_col'],
+                                                                'inner')
+            numerator_product = numerators_collated.withColumn('mul', f.col('v_p1') * f.col('v_p2'))
+            numerator_per_ts = numerator_product.groupBy('_dummy_group_col').agg(f.sum('mul').alias('numerator'))
+            acf_df = numerator_per_ts.join(denominator_per_ts, '_dummy_group_col', 'inner')
+            acf_df = acf_df.withColumn(
+                "autocorr_value",
+                f.col('numerator') / f.col('denominator')
+            ).withColumn("lag",f.lit(lag_value)).select("lag", "autocorr_value")
+            acf_df_total = acf_df_total.unionByName(acf_df)
+
+        acf_df_total = acf_df_total.orderBy("lag")
+        return acf_df_total
+
 
   def interpolate(self, freq: str, func: str, method: str, target_cols: List[str] = None,ts_col: str = None, partition_cols: List[str]=None, show_interpolated:bool = False):
     """
