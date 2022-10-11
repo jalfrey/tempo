@@ -130,7 +130,6 @@ def get_function_name(request) -> str:
     return function_name
 
 
-@pytest.fixture()
 def buildTestDF(schema, data, ts_cols=None):
     """
     Constructs a Spark Dataframe from the given components
@@ -160,7 +159,7 @@ def buildTestDF(schema, data, ts_cols=None):
 
 
 @pytest.fixture()
-def get_data_as_sdf(get_test_data, name: str, convert_ts_col: bool = True):
+def get_data_as_sdf(name: str, convert_ts_col: bool = True):
     td = get_test_data[name]
     ts_cols = []
     if convert_ts_col and (td.get("ts_col", None) or td.get("other_ts_cols", [])):
@@ -170,7 +169,7 @@ def get_data_as_sdf(get_test_data, name: str, convert_ts_col: bool = True):
 
 
 @pytest.fixture()
-def get_data_as_tsdf(get_test_data, name: str = "input", convert_ts_col: bool = True):
+def get_data_as_tsdf(name: str = "input", convert_ts_col: bool = True):
     df = get_data_as_sdf(name, convert_ts_col)
     td = get_test_data[name]
     tsdf = TSDF(
@@ -183,7 +182,7 @@ def get_data_as_tsdf(get_test_data, name: str = "input", convert_ts_col: bool = 
 
 
 @pytest.fixture()
-def get_data_as_idf(get_test_data, name: str, convert_ts_col: bool = True):
+def get_data_as_idf(name: str, convert_ts_col: bool = True):
     df = get_data_as_sdf(name, convert_ts_col)
     td = get_test_data[name]
     idf = IntervalsDF(
@@ -193,22 +192,6 @@ def get_data_as_idf(get_test_data, name: str, convert_ts_col: bool = True):
         series_ids=td.get("series", None),
     )
     return idf
-
-
-def __load_test_data(test_case_path: str) -> dict:
-    """
-    This function reads our unit test data config json and returns the required metadata to create the correct
-    format of test data (Spark DataFrames, Pandas DataFrames and Tempo TSDFs)
-    :param test_case_path: string representation of the data path e.g. : "tsdf_tests.BasicTests.test_describe"
-    :type test_case_path: str
-    """
-    file_name, class_name, func_name = test_case_path.split(".")
-
-    # find our test data file
-    test_data_file = __get_test_data_file_path(file_name)
-    if not os.path.isfile(test_data_file):
-        warnings.warn(f"Could not load test data file {test_data_file}")
-        return {}
 
 
 #
