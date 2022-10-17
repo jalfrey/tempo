@@ -53,10 +53,10 @@ def get_spark():
     return spark
 
 
-@pytest.fixture(scope="module")
-def get_test_data() -> dict:
-    test_data = __load_test_data()
-    return test_data
+# @pytest.fixture(scope="module")
+# def get_test_data() -> dict:
+#     test_data = __load_test_data()
+#     return test_data
 
 
 @pytest.fixture(scope="module")
@@ -88,7 +88,7 @@ def get_class_name(request) -> str:
 #     if not os.path.isfile(test_data_file):
 #         warnings.warn(f"Could not load test data file {test_data_file}")
 #         return {}
-# 
+#
 #     # proces the data file
 #     with open(test_data_file, "r") as f:
 #         data_metadata_from_json = jsonref.load(f)
