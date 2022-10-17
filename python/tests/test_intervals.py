@@ -59,6 +59,7 @@ class TestIntervalsDF:
         with pytest.raises(ValueError):
             IntervalsDF(get_data_as_sdf, "start_ts", "end_ts", ("series_1",))
 
+    @pytest.mark.parametrize("get_data_as_sdf", "input")
     def test_init_series_list(get_data_as_sdf):
         idf = IntervalsDF(get_data_as_sdf, "start_ts", "end_ts", ["series_1"])
 

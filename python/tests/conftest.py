@@ -17,12 +17,12 @@ from tempo.intervals import IntervalsDF
 from chispa import assert_df_equality
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def set_timezone() -> None:
     os.environ["TZ"] = "UTC"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def get_spark():
     builder = (
         SparkSession.builder.appName("unit-tests")
@@ -65,63 +65,43 @@ def get_module_name(request) -> str:
     return module_name
 
 
-@pytest.fixture(scope="module")
-def __get_test_data_file_path(self, test_file_name: str, test_data_folder: str = "unit_test_data") -> str:
-    # what folder are we running from?
-    cwd = os.path.basename(os.getcwd())
-
-    # build path based on what folder we're in
-    dir_path = "./"
-    if cwd == "tempo":
-        dir_path = "./python/tests"
-    elif cwd == "python":
-        dir_path = "./tests"
-    elif cwd != "tests":
-        raise RuntimeError(
-            f"Cannot locate test data file {test_file_name}, running from dir {os.getcwd()}"
-        )
-
-    # return appropriate path
-    return f"{dir_path}/{test_data_folder}/{test_file_name}.json"
-
-
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="class", autouse=True)
 def get_class_name(request) -> str:
     class_name = str(request.cls)
     return class_name
 
 
-@pytest.fixture(scope="class")
-def __load_test_data() -> dict:
-    """
-    This function reads our unit test data config json and returns the required metadata to create the correct
-    format of test data (Spark DataFrames, Pandas DataFrames and Tempo TSDFs)
-    :param test_case_path: string representation of the data path e.g. : "tsdf_tests.BasicTests.test_describe"
-    :type test_case_path: str
-    """
-    file_name = get_module_name()
-    class_name = get_class_name()
-    func_name = get_function_name()
-
-    # find our test data file
-    test_data_file = __get_test_data_file_path(file_name)
-    if not os.path.isfile(test_data_file):
-        warnings.warn(f"Could not load test data file {test_data_file}")
-        return {}
-
-    # proces the data file
-    with open(test_data_file, "r") as f:
-        data_metadata_from_json = jsonref.load(f)
-        # warn if data not present
-        if class_name not in data_metadata_from_json:
-            warnings.warn(f"Could not load test data for {file_name}.{class_name}")
-            return {}
-        if func_name not in data_metadata_from_json[class_name]:
-            warnings.warn(
-                f"Could not load test data for {file_name}.{class_name}.{func_name}"
-            )
-            return {}
-        return data_metadata_from_json[class_name][func_name]
+# @pytest.fixture(scope="class")
+# def __load_test_data() -> dict:
+#     """
+#     This function reads our unit test data config json and returns the required metadata to create the correct
+#     format of test data (Spark DataFrames, Pandas DataFrames and Tempo TSDFs)
+#     :param test_case_path: string representation of the data path e.g. : "tsdf_tests.BasicTests.test_describe"
+#     :type test_case_path: str
+#     """
+#     file_name = get_module_name()
+#     class_name = get_class_name()
+#     func_name = get_function_name()
+#
+#     # find our test data file
+#     test_data_file = __get_test_data_file_path(file_name)
+#     if not os.path.isfile(test_data_file):
+#         warnings.warn(f"Could not load test data file {test_data_file}")
+#         return {}
+# 
+#     # proces the data file
+#     with open(test_data_file, "r") as f:
+#         data_metadata_from_json = jsonref.load(f)
+#         # warn if data not present
+#         if class_name not in data_metadata_from_json:
+#             warnings.warn(f"Could not load test data for {file_name}.{class_name}")
+#             return {}
+#         if func_name not in data_metadata_from_json[class_name]:
+#             warnings.warn(
+#                 f"Could not load test data for {file_name}.{class_name}.{func_name}"
+#             )
+#             return {}
+#         return data_metadata_from_json[class_name][func_name]
 
 
 @pytest.fixture()
@@ -156,16 +136,6 @@ def buildTestDF(schema, data, ts_cols=None):
             ):
                 df = df.withColumn(tsc, f.to_timestamp(f.col(tsc)))
     return df
-
-
-@pytest.fixture()
-def get_data_as_sdf(name: str, convert_ts_col: bool = True):
-    td = get_test_data[name]
-    ts_cols = []
-    if convert_ts_col and (td.get("ts_col", None) or td.get("other_ts_cols", [])):
-        ts_cols = [td["ts_col"]] if "ts_col" in td else []
-        ts_cols.extend(td.get("other_ts_cols", []))
-    return buildTestDF(td["schema"], td["data"], ts_cols)
 
 
 @pytest.fixture()
