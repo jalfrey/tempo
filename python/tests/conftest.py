@@ -1,6 +1,7 @@
 import os
 import re
 import warnings
+from collections import namedtuple
 from pathlib import Path
 from typing import Union
 
@@ -110,7 +111,7 @@ def get_function_name(request) -> str:
     return function_name
 
 
-def buildTestDF(schema, data, ts_cols=None):
+def build_test_data(schema, data, ts_cols=None):
     """
     Constructs a Spark Dataframe from the given components
     :param schema: the schema to use for the Dataframe
@@ -138,7 +139,25 @@ def buildTestDF(schema, data, ts_cols=None):
     return df
 
 
-@pytest.fixture()
+# @pytest.fixture()
+# def get_test_scenario_data(request)
+#     function_name = str(request.function).split(" ")[1]
+def get_data_as_sdf(td: namedtuple, convert_ts_col=True):
+    ts_cols = []
+    if convert_ts_col:
+        try:
+            ts_cols = [td.ts_col]
+        except AttributeError:
+            ts_cols = []
+
+        try:
+            ts_cols.extend(td.other_ts_cols)
+        except AttributeError:
+            pass
+
+    return build_test_data(td.schema, td.data, ts_cols)
+
+
 def get_data_as_tsdf(name: str = "input", convert_ts_col: bool = True):
     df = get_data_as_sdf(name, convert_ts_col)
     td = get_test_data[name]
@@ -151,7 +170,6 @@ def get_data_as_tsdf(name: str = "input", convert_ts_col: bool = True):
     return tsdf
 
 
-@pytest.fixture()
 def get_data_as_idf(name: str, convert_ts_col: bool = True):
     df = get_data_as_sdf(name, convert_ts_col)
     td = get_test_data[name]

@@ -1,11 +1,17 @@
+import pyspark.sql.functions as f
 import pytest
+from pyspark.sql.utils import AnalysisException
 
 from tempo.intervals import *
-from pyspark.sql.utils import AnalysisException
-import pyspark.sql.functions as f
+from tests.conftest import get_data_as_sdf
+from tests.data_util.data_resolver import inject_test_data
 
 
 class TestIntervalsDF:
+    test_data = inject_test_data(file="intervals_tests.json")
+    print(type(test_data))
+    print(test_data.IntervalsDFTests.test_init_series_str.input)
+
     union_tests_dict_input = [
         {
             "start_ts": "2020-08-01 00:00:09",
@@ -51,31 +57,27 @@ class TestIntervalsDF:
         },
     ]
 
-    def test_init_series_str(get_data_as_sdf):
+    @pytest.mark.parametrize("test_input", test_data.IntervalsDFTests.test_init_series_str.input)
+    def test_init_series_str(self, test_input):
+        print(test_input)
+        print(type(test_input))
         with pytest.raises(ValueError):
-            IntervalsDF(get_data_as_sdf, "start_ts", "end_ts", "series_1")
+            IntervalsDF(get_data_as_sdf(test_input), "start_ts", "end_ts", "series_1")
 
     def test_init_series_tuple(get_data_as_sdf):
         with pytest.raises(ValueError):
             IntervalsDF(get_data_as_sdf, "start_ts", "end_ts", ("series_1",))
 
-    @pytest.mark.parametrize("get_data_as_sdf", "input")
     def test_init_series_list(get_data_as_sdf):
         idf = IntervalsDF(get_data_as_sdf, "start_ts", "end_ts", ["series_1"])
 
         assert isinstance(idf, IntervalsDF)
         assert isinstance(idf.df, DataFrame)
-        # E       assert False
-        # E        +  where False = isinstance(<tests.test_intervals.TestIntervalsDF object at 0x1342b5600>, DataFrame)
-        # E        +    where <tests.test_intervals.TestIntervalsDF object at 0x1342b5600> = <tempo.intervals.IntervalsDF object at 0x1342b60e0>.df
         assert idf.start_ts == "start_ts"
         assert idf.end_ts == "end_ts"
         assert idf.interval_boundaries == ["start_ts", "end_ts"]
         assert "series_1" in idf.series_ids
         assert {"start_ts", "end_ts", "series_1"} == set(idf.structural_columns)
-        print(idf.observational_columns)  # AttributeError: 'TestIntervalsDF' object has no attribute 'columns'
-        # self.assertCountEqual(idf.observational_columns, ["metric_1", "metric_2"])
-        # self.assertCountEqual(idf.metric_columns, ["metric_1", "metric_2"])
 
     def test_init_series_none(self):
         df_input = self.get_data_as_sdf("input")
