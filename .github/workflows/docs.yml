@@ -5,7 +5,6 @@ on:
   push:
     tags:
       - 'v*' # only release a versioned tag, such as v.X.Y.Z
-    branches: ['*']
 
 jobs:
   build-docs:
