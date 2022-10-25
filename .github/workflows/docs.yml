@@ -29,8 +29,8 @@ jobs:
       - name: Build HTML
         working-directory: ./docs
         run: |
-          apt-get update -y
-          apt-get install -y -V git
+          sudo apt-get update -y
+          sudo apt-get install -y -V git
           pip install -r requirements.txt
           make html
       - name: Upload artifacts
