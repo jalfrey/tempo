@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - 'v*' # only release a versioned tag, such as v.X.Y.Z
+    branches: ['*']
 
 jobs:
   build-docs:
@@ -28,7 +29,7 @@ jobs:
       - name: Build HTML
         uses: ammaraskar/sphinx-action@0.4
         with:
-          pre-build-command: "apt-get update -y && apt-get install -y git"
+          pre-build-command: "apt-get update -y && apt-get install -y git libarrow-dev"
       - name: Upload artifacts
         uses: actions/upload-artifact@v1
         with:
