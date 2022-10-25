@@ -29,7 +29,7 @@ jobs:
       - name: Build HTML
         uses: ammaraskar/sphinx-action@0.4
         with:
-          pre-build-command: "apt-get update -y && apt-get install -y git cmake"
+          pre-build-command: "apt-get update -y && apt-get install -y git build-essential"
       - name: Upload artifacts
         uses: actions/upload-artifact@v1
         with:
