@@ -22,6 +22,7 @@ min = "min"
 max = "max"
 average = "mean"
 ceiling = "ceil"
+frequency = "count"
 
 freq_dict = {
     "microsec": "microseconds",
@@ -34,7 +35,7 @@ freq_dict = {
 }
 
 allowableFreqs = [MUSEC, MS, SEC, MIN, HR, DAY]
-allowableFuncs = [floor, min, max, average, ceiling]
+allowableFuncs = [floor, min, max, average, ceiling, frequency]
 
 
 def _appendAggKey(tsdf: tempo.TSDF, freq: str = None):
@@ -150,6 +151,10 @@ def aggregate(
             f.col(c).alias("{}".format(prefix) + c) for c in metricCols
         ]
         res = res.select(*groupingCols, *new_cols)
+        
+    # The only columns the count should be over is the grouping cols
+    elif func == frequency:
+        res = df.groupBy(groupingCols).count()
 
     # aggregate by the window and drop the end time (use start time as new ts_col)
     res = (
