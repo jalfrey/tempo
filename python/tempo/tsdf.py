@@ -13,6 +13,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.window import Window, WindowSpec
+from pyspark.sql.types import NumericType, BooleanType, StructField, StringType, TimestampType
 from scipy.fft import fft, fftfreq
 
 import tempo.io as tio
@@ -67,7 +68,7 @@ class TSDF:
         # this if clause seems unneeded. Perhaps we should check for non-valid
         # Timestamp string matching then do some pattern matching to extract
         # the time stamp.
-        if df.schema[ts_col].dataType == "StringType":  # pragma: no cover
+        if isinstance(df.schema[ts_col].dataType, StringType):  # pragma: no cover
             sample_ts = df.limit(1).collect()[0][0]
             self.__validate_ts_string(sample_ts)
             self.df = self.__add_double_ts().withColumnRenamed("double_ts", self.ts_col)
@@ -1042,7 +1043,7 @@ class TSDF:
             ]
 
         # build window
-        if str(self.df.schema[self.ts_col].dataType) == "TimestampType":
+        if isinstance(self.df.schema[self.ts_col].dataType, TimestampType):
             self.df = self.__add_double_ts()
             prohibited_cols.extend(["double_ts"])
             w = self.__rangeBetweenWindow(
