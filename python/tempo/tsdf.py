@@ -1025,9 +1025,11 @@ class TSDF:
         # identify columns to summarize if not provided
         # these should include all numeric columns that
         # are not the timestamp column and not any of the partition columns
+        
+        # columns we should never summarize
+        prohibited_cols = [self.ts_col.lower()]
+        
         if not colsToSummarize:
-            # columns we should never summarize
-            prohibited_cols = [self.ts_col.lower()]
             if self.partitionCols:
                 prohibited_cols.extend([pc.lower() for pc in self.partitionCols])
             # types that can be summarized
