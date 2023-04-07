@@ -1072,6 +1072,15 @@ class TSDF:
                     / f.col("stddev_" + metric)
                 ).alias("zscore_" + metric)
             )
+            derivedCols.append(
+                (
+                    f.sum(
+                        (f.col(metric) / f.col("sum_") + metric) 
+                        * f.log2(f.col(metric) / f.col("sum_") + metric)
+                    )
+                ).alias("entropy_" + metric)
+            )
+
         selected_df = self.df.select(*selectedCols)
         summary_df = selected_df.select(*selected_df.columns, *derivedCols).drop(
             "double_ts"
