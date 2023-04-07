@@ -1064,11 +1064,21 @@ class TSDF:
             selectedCols.append(f.max(metric).over(w).alias("max_" + metric))
             selectedCols.append(f.sum(metric).over(w).alias("sum_" + metric))
             selectedCols.append(f.stddev(metric).over(w).alias("stddev_" + metric))
+            selectedCols.append(f.kurtosis(metric).over(w).alias("kurtosis_" + metric))
+            selectedCols.append(f.skewness(metric).over(w).alias("skewness_" + metric))
             derivedCols.append(
                 (
                     (f.col(metric) - f.col("mean_" + metric))
                     / f.col("stddev_" + metric)
                 ).alias("zscore_" + metric)
+            )
+            derivedCols.append(
+                (
+                    -f.sum(
+                        (f.col(metric) / f.col("sum_") + metric) 
+                        * f.log2(f.col(metric) / f.col("sum_") + metric)
+                    )
+                ).alias("entropy_" + metric)
             )
         selected_df = self.df.select(*selectedCols)
         summary_df = selected_df.select(*selected_df.columns, *derivedCols).drop(
