@@ -1074,10 +1074,8 @@ class TSDF:
             )
             derivedCols.append(
                 (
-                    f.sum(
-                        (f.col(metric) / f.col("sum_") + metric) 
-                        * f.log2(f.col(metric) / f.col("sum_") + metric)
-                    )
+                    -1 * (f.col(metric) / f.col("sum_" + metric)) 
+                    * f.log2(f.col(metric) / f.col("sum_" + metric))
                 ).alias("entropy_" + metric)
             )
 

@@ -28,20 +28,21 @@ class SparkTest(unittest.TestCase):
         # create and configure PySpark Session
         cls.spark = (
             SparkSession.builder.appName("unit-tests")
-            .config("spark.jars.packages", "io.delta:delta-core_2.12:1.1.0")
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            .config(
-                "spark.sql.catalog.spark_catalog",
-                "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-            )
-            .config(
-                "spark.driver.extraJavaOptions",
-                "-Dio.netty.tryReflectionSetAccessible=true",
-            )
-            .config(
-                "spark.executor.extraJavaOptions",
-                "-Dio.netty.tryReflectionSetAccessible=true",
-            )
+            # We comment out the Databricks-specific Spark Configuration
+            # .config("spark.jars.packages", "io.delta:delta-core_2.12:1.1.0")
+            # .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            # .config(
+            #     "spark.sql.catalog.spark_catalog",
+            #     "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+            # )
+            # .config(
+            #     "spark.driver.extraJavaOptions",
+            #     "-Dio.netty.tryReflectionSetAccessible=true",
+            # )
+            # .config(
+            #     "spark.executor.extraJavaOptions",
+            #     "-Dio.netty.tryReflectionSetAccessible=true",
+            # )
             .config("spark.sql.session.timeZone", "UTC")
             .master("local")
             .getOrCreate()
