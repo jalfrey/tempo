@@ -1064,19 +1064,11 @@ class TSDF:
             selectedCols.append(f.max(metric).over(w).alias("max_" + metric))
             selectedCols.append(f.sum(metric).over(w).alias("sum_" + metric))
             selectedCols.append(f.stddev(metric).over(w).alias("stddev_" + metric))
-            selectedCols.append(f.kurtosis(metric).over(w).alias("kurtosis_" + metric))
-            selectedCols.append(f.skewness(metric).over(w).alias("skewness_" + metric))
             derivedCols.append(
                 (
                     (f.col(metric) - f.col("mean_" + metric))
                     / f.col("stddev_" + metric)
                 ).alias("zscore_" + metric)
-            )
-            derivedCols.append(
-                (
-                    -1 * (f.col(metric) / f.col("sum_" + metric)) 
-                    * f.log2(f.col(metric) / f.col("sum_" + metric))
-                ).alias("entropy_" + metric)
             )
 
         selected_df = self.df.select(*selectedCols)
@@ -1119,9 +1111,9 @@ class TSDF:
         parsed_freq = rs.checkAllowableFreq(freq)
         agg_window = f.window(
             f.col(self.ts_col),
-            "{} {}".format(parsed_freq[0], rs.freq_dict[parsed_freq[1]]),
+            "{} {}".format(parsed_freq[0], rs.freq_dict[parsed_freq[1]])
         )
-
+        
         # compute column summaries
         selectedCols = []
         for metric in metricCols:
@@ -1133,12 +1125,33 @@ class TSDF:
                     f.max(f.col(metric)).alias("max_" + metric),
                     f.sum(f.col(metric)).alias("sum_" + metric),
                     f.stddev(f.col(metric)).alias("stddev_" + metric),
+                    f.kurtosis(f.col(metric)).alias("kurtosis_" + metric),
+                    f.skewness(f.col(metric)).alias("skewness_" + metric)
                 ]
             )
-
+        
         selected_df = self.df.groupBy(self.partitionCols + [agg_window]).agg(
             *selectedCols
         )
+        
+        # In order to compute the entropy, we compute time-window probabilities
+        entropy_df = self.df.join(selected_df, 
+            (self.df[self.ts_col] >= selected_df.window.start) 
+            & (self.df[self.ts_col] <= selected_df.window.end)
+        )
+        
+        derivedCols = []
+        for metric in metricCols:
+            metric_prob = metric + "_prob"
+            entropy_df = entropy_df.withColumn(metric_prob, f.col(metric) / f.col("sum_" + metric))
+            derivedCols.extend(
+                [
+                    -1 * f.sum(f.log2(metric_prob) * metric_prob).alias("entropy_" + metric)
+                ]
+            )
+        #selected_df = self.df.groupBy(self.partitionCols + [agg_window]).agg(
+        #)
+        
         summary_df = (
             selected_df.select(*selected_df.columns)
             .withColumn(self.ts_col, f.col("window").start)
