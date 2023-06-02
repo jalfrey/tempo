@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from functools import cached_property
 
+import pyspark.sql
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import NumericType, BooleanType, StructField
 import pyspark.sql.functions as f
@@ -31,7 +32,11 @@ class IntervalsDF:
     """
 
     def __init__(
-        self, df: DataFrame, start_ts: str, end_ts: str, series_ids: list[str] = None
+        self,
+        df: DataFrame,
+        start_ts: str,
+        end_ts: str,
+        series_ids: Optional[list[str]] = None,
     ) -> None:
         """
          Constructor for :class:`IntervalsDF`.
@@ -100,7 +105,7 @@ class IntervalsDF:
         return [col.name for col in self.df.schema.fields if is_metric_col(col)]
 
     @cached_property
-    def window(self):
+    def window(self) -> pyspark.sql.window:
         return Window.partitionBy(*self.series_ids).orderBy(*self.interval_boundaries)
 
     @classmethod
@@ -181,7 +186,7 @@ class IntervalsDF:
 
         df = (
             df.groupBy(start_ts, end_ts, *series)
-            .pivot(metrics_name_col, values=metric_names)  # type: ignore
+            .pivot(metrics_name_col, values=metric_names)
             .max(metrics_value_col)
         )
 
@@ -346,14 +351,12 @@ class IntervalsDF:
         """
 
         if how == "left":
-
             # new boundary for interval end will become the start of the next
             # interval
             new_boundary_col = self.end_ts
             new_boundary_val = f"_lead_1_{self.start_ts}"
 
         else:
-
             # new boundary for interval start will become the end of the
             # previous interval
             new_boundary_col = self.start_ts
@@ -386,7 +389,6 @@ class IntervalsDF:
         )
 
         if how == "left":
-
             for c in self.metric_columns:
                 df = df.withColumn(
                     c,
@@ -599,7 +601,6 @@ class IntervalsDF:
         """
 
         if stack:
-
             n_cols = len(self.metric_columns)
             metric_cols_expr = ",".join(
                 tuple(f"'{col}', {col}" for col in self.metric_columns)
